@@ -1,0 +1,338 @@
+﻿@page
+@model WebGames.Pages.SudokuModel
+@{
+    @section styles {
+        <link rel="stylesheet" href="/css/sudoku.css" />
+    }
+}
+
+<h1>Sudoku</h1>
+
+<div class="rack">
+
+    <form id="changedifficultyForm" method="post" asp-page-handler="changedifficulty">
+        <select id="difficultySelect" asp-for="SelectedDifficulty" asp-onchange="OnDifficultySelectChange">
+            <option value="Testing">Testing</option>
+            <option value="VeryEasy">Very Easy</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+            <option value="VeryHard">Very Hard</option>
+            <option value="Brutal">Brutal</option>
+        </select>
+        <button type="submit">Update Board</button>
+    </form>
+
+    <div class="score">
+        Score: 4050
+    </div>
+
+</div>
+
+<div class="container">
+
+    <div class="sudoku-grid">
+        @for (var row = 0; row < Model.GridSize; row++)
+        {
+            <div class="sudoku-row">
+                @for (var col = 0; col < Model.GridSize; col++)
+                {
+                    var cellValue = Model.Grid[row, col];
+                    var displayValue = cellValue != 0 ? cellValue.ToString() : "";
+
+                    // Determine if the current cell is at the right or bottom edge of a 3x3 box
+                    bool isRightEdge = (col + 1) % Model.SquareSize == 0 && col != Model.GridSize - 1;
+                    bool isBottomEdge = (row + 1) % Model.SquareSize == 0 && row != Model.GridSize - 1;
+
+                    <div class="sudoku-cell @(isRightEdge ? "thick-right-border" : "") @(isBottomEdge ? "thick-bottom-border" : "")" data-row="@row" data-col="@col" onclick="highlightCells(this)">
+                        @displayValue
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+
+    <div class="control-container">
+
+        <div class="number-grid">
+            @for (var row = 0; row < 3; row++)
+            {
+                <div class="number-row">
+                    @for (var col = 0; col < 3; col++)
+                    {
+                        var number = row * 3 + col + 1;
+                        <div class="number-cell" onclick="handleNumberClick(@number, '@Model.ConvertToJaggedArrayJson(Model.Grid)', '@Model.ConvertToJaggedArrayJson(Model.UserGrid)', '@Model.ConvertToJaggedArrayJson(Model.CorrectGrid)', '@Model.ConvertToJaggedArrayJson(Model.NotesGrid)')">
+                            <span class="number-text">@number</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+
+        <div class="button-grid">
+            <div class="button-row">
+                <div class="notes-button" onclick="handleNotesClick(this)">
+                    <span class="button-text">Notes</span></div>
+                <div class="button" onclick="handleNumberClick(0, '@Model.ConvertToJaggedArrayJson(Model.Grid)', '@Model.ConvertToJaggedArrayJson(Model.UserGrid)', '@Model.ConvertToJaggedArrayJson(Model.CorrectGrid)', '@Model.ConvertToJaggedArrayJson(Model.NotesGrid)')">
+                    <span class="button-text">Erase</span></div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+@section scripts {
+    <script>
+        var mistakesCount = 0;
+        var isNotes = false;
+        var userGridData = null;
+        var notesGrid = null;
+
+        function handleNumberClick(number, gridJson, userGridJson, correctGridJson, notesGridJson) {
+            var gridData = JSON.parse(gridJson);
+            var correctGridData = JSON.parse(correctGridJson);
+            if (userGridData === null){
+                userGridData = JSON.parse(userGridJson);
+            }
+            if (notesGrid === null) {
+                var size = 9;
+                notesGrid = new Array(size);
+
+                for (let i = 0; i < size; i++) {
+                    notesGrid[i] = new Array(size).fill('');
+                }
+            }
+
+            var highlightedCell = document.querySelector('.highlight-cell');
+            if (highlightedCell) {
+                var row = parseInt(highlightedCell.getAttribute('data-row'));
+                var col = parseInt(highlightedCell.getAttribute('data-col'));
+
+                var usedInGrid = gridData[row][col] !== 0;
+
+                if (!usedInGrid) {
+                    if (number === 0 || (!isNotes && userGridData[row][col] === number)) {
+                        highlightedCell.textContent = "";
+                        userGridData[row][col] = 0;
+                        notesGrid[row][col] = "";
+                        highlightedCell.classList.remove('incorrect-number');
+                    }else if (isNotes) {
+                        if (userGridData[row][col] === 0) {
+                            numberExist = notesGrid[row][col].includes(number.toString())
+                            if (numberExist) {
+                                notesGrid[row][col] = notesGrid[row][col].replace(number.toString(), '');
+                            }
+                            else {
+                                notesGrid[row][col] = notesGrid[row][col].toString() + number.toString();
+                            }
+
+                            // Clear the cell's content
+                            highlightedCell.innerHTML = "";
+
+                            // Update the cell's content based on notesGrid
+                            for (var i = 1; i <= 9; i++) {
+                                if (notesGrid[row][col].includes(i.toString())) {
+                                    var noteSpan = document.createElement('span');
+                                    noteSpan.textContent = i;
+
+                                    // Add CSS classes to noteSpan based on position
+                                    if (i <= 3) {
+                                        noteSpan.classList.add('note-top');
+                                    } else if (i <= 6) {
+                                        noteSpan.classList.add('note-middle');
+                                    } else {
+                                        noteSpan.classList.add('note-bottom');
+                                    }
+
+                                    if (i == 1 || i == 4 || i == 7) {
+                                        noteSpan.classList.add('note-left');
+                                    } else if (i == 3 || i == 6 || i == 9) {
+                                        noteSpan.classList.add('note-right');
+                                    }
+
+                                    highlightedCell.appendChild(noteSpan);
+                                }
+                            }
+                        }
+                    }else if (userGridData[row][col] == 0) {
+                        highlightedCell.textContent = number;
+                        userGridData[row][col] = number;
+                        notesGrid[row][col] = "";
+
+                        // Check correctness
+                        var isCorrect = checkCorrectness(row, col, number, correctGridData);
+
+                        if (!isCorrect) {
+                            highlightedCell.classList.add('incorrect-number');
+                            mistakesCount++;
+                        }
+                        else{
+                            highlightedCell.classList.remove('incorrect-number');
+                        }
+                    }else if (userGridData[row][col] != number) {
+                        highlightCells(highlightedCell);
+                    }
+                }
+                updateMistakesDisplay();
+                highlightCells(highlightedCell);
+                highlightCells(highlightedCell);
+                checkIfWinner(correctGridData);
+            } else if (number > 0 && number < 10) {
+                highlightCellNumbers(number);
+            }
+        }
+
+        function checkIfWinner(correctGridData) {
+            for (var row = 0; row < correctGridData.length; row++) {
+                for (var col = 0; col < correctGridData[row].length; col++) {
+                    if (correctGridData[row][col] !== userGridData[row][col]) {
+                        return;
+                    }
+                }
+            }
+            window.alert("You won!");
+        }
+
+        function checkNotesNumberExist(notesGrid, number) {
+            for (var row = 0; row < notesGrid.length; row++) {
+                for (var col = 0; col < notesGrid[row].length; col++) {
+                    if (notesGrid[row][col] == number) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function handleNotesClick(notesButton) {
+            notesButton.classList.remove('highlight-notes');
+            if (isNotes) {
+                isNotes = false;
+                return;
+            }
+            notesButton.classList.add('highlight-notes');
+            isNotes = true;
+        }
+
+        function checkCorrectness(row, col, number, correctGridData) {
+            var correctNumber = correctGridData[row][col];
+            return parseInt(number) === correctNumber;
+        }
+
+        function updateMistakesDisplay() {
+            var scoreElement = document.querySelector('.score');
+            var points = 4050 - (100 * mistakesCount);
+            scoreElement.textContent = 'Score: ' + points;
+        }
+
+        function highlightCells(cell) {
+            var row = cell.getAttribute('data-row');
+            var col = cell.getAttribute('data-col');
+            var number = cell.textContent.trim();
+
+            var cells = document.getElementsByClassName('sudoku-cell');
+            var isHighlighted = cell.classList.contains('highlight-cell');
+
+            for (var i = 0; i < cells.length; i++) {
+                cells[i].classList.remove('highlight-cell');
+                cells[i].classList.remove('highlight-cellrow');
+                cells[i].classList.remove('highlight-number');
+                cells[i].classList.remove('highlight-numberrow');
+            }
+
+            // Remove highlights if the clicked cell is already highlighted
+            if (isHighlighted) {
+                return;
+            }
+
+            // Highlight the row
+            var rowCells = document.querySelectorAll(`.sudoku-cell[data-row="${row}"]`);
+            rowCells.forEach(function (rowCell) {
+                rowCell.classList.add('highlight-cellrow');
+            });
+
+            // Highlight the column
+            var colCells = document.querySelectorAll(`.sudoku-cell[data-col="${col}"]`);
+            colCells.forEach(function (colCell) {
+                colCell.classList.add('highlight-cellrow');
+            });
+
+            // Highlight the square
+            var squareRowStart = Math.floor(row / 3) * 3;
+            var squareColStart = Math.floor(col / 3) * 3;
+            var squareCells = document.querySelectorAll(
+                `.sudoku-row:nth-child(n + ${squareRowStart + 1}):nth-child(-n + ${squareRowStart + 3}) .sudoku-cell:nth-child(n + ${squareColStart + 1}):nth-child(-n + ${squareColStart + 3})`
+            );
+            squareCells.forEach(function (squareCell) {
+                squareCell.classList.add('highlight-cellrow');
+            });
+
+            // Highlight cells with the same number
+            highlightCellNumbers(number);
+
+            // Highlight the clicked cell
+            cell.classList.add('highlight-cell');
+            cell.classList.remove('highlight-cellrow');
+        }
+
+        function highlightCellNumbers(number){
+            var numberCells = document.querySelectorAll(`.sudoku-cell:not(.highlight-cellrow)`);
+
+            for (var i = 0; i < numberCells.length; i++) {
+                numberCells[i].classList.remove('highlight-numberrow');
+                numberCells[i].classList.remove('highlight-number');
+                if (numberCells[i].textContent.trim().length > 0 && !numberCells[i].classList.contains('highlight-cellrow')) {
+                    numberCells[i].classList.add('highlight-numberrow');
+                }
+            }
+
+
+            numberCells.forEach(function (numberCell) {
+                var isCorrectNumber = (numberCell.textContent.trim() == number && numberCell.textContent.trim() != 0);
+                if (isCorrectNumber) {
+
+                    var numberCellRow = numberCell.getAttribute('data-row');
+                    var numberCellCol = numberCell.getAttribute('data-col');
+
+                    // Highlight the row
+                    var rowCells = document.querySelectorAll(`.sudoku-cell[data-row="${numberCellRow}"]`);
+                    rowCells.forEach(function (rowCell) {
+                        var isRowHighlighted = rowCell.classList.contains('highlight-cellrow');
+                        if (!isRowHighlighted) {
+                            rowCell.classList.add('highlight-numberrow');
+                        }
+                    });
+
+                    // Highlight the column
+                    var colCells = document.querySelectorAll(`.sudoku-cell[data-col="${numberCellCol}"]`);
+                    colCells.forEach(function (colCell) {
+                        var isColHighlighted = colCell.classList.contains('highlight-cellrow');
+                        if (!isColHighlighted) {
+                            colCell.classList.add('highlight-numberrow');
+                        }
+                    });
+
+                    // Highlight the square
+                    var squareRowStart = Math.floor(numberCellRow / 3) * 3;
+                    var squareColStart = Math.floor(numberCellCol / 3) * 3;
+                    var squareCells = document.querySelectorAll(
+                        `.sudoku-row:nth-child(n + ${squareRowStart + 1}):nth-child(-n + ${squareRowStart + 3}) .sudoku-cell:nth-child(n + ${squareColStart + 1}):nth-child(-n + ${squareColStart + 3})`
+                    );
+                    squareCells.forEach(function (squareCell) {
+                        var isColHighlighted = squareCell.classList.contains('highlight-cellrow');
+                        if (!isColHighlighted) {
+                            squareCell.classList.add('highlight-numberrow');
+                        }
+                    });
+
+                    numberCell.classList.remove('highlight-numberrow');
+                    numberCell.classList.add('highlight-number');
+                }
+            });
+        }
+    </script>
+}
